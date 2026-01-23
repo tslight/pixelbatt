@@ -2,8 +2,7 @@
 # vim:ts=8
 
 CC	= cc
-CFLAGS	= -O2 -Wall -Wunused -Wmissing-prototypes -Wstrict-prototypes
-
+CFLAGS	= -O2 -Wall -Wextra -Wshadow -Wunused -Wmissing-prototypes -Wstrict-prototypes -Wconversion -std=c11
 PREFIX	= /usr/local
 BINDIR	= $(DESTDIR)$(PREFIX)/bin
 

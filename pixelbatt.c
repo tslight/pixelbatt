@@ -7,6 +7,7 @@
  */
 
 #include <err.h>
+#include <errno.h>
 #include <getopt.h>
 #include <signal.h>
 #include <stdio.h>
@@ -29,7 +30,10 @@
 #define RAISE 1
 #define WARNLEVEL 10
 
-int ac_line, battery_life, time_remaining = -1;
+static volatile sig_atomic_t terminate = 0;
+
+int ac_line, time_remaining;
+unsigned int battery_life;
 
 char* progname = "pixelbatt";
 
@@ -39,7 +43,7 @@ struct xinfo {
   int screen;
   Window bar;
   Window popup;
-  int size;
+  unsigned int size;
   char position;
   GC gc;
   Colormap colormap;
@@ -54,7 +58,7 @@ const struct option longopts[] = {
   { "top",	no_argument,		NULL,	't' },
   { "bottom",	no_argument,		NULL,	'b' },
   { "help",	no_argument,		NULL,	'h' },
-  { NULL,		0,			NULL,	0   }
+  { NULL,	0,			NULL,	0   }
 };
 
 extern char *__progname;
@@ -69,46 +73,47 @@ static void usage(void) {
 }
 
 static void kill_popup(void) {
-  if ( x.popup != -1 ) {
+  if ( x.popup != 0 ) {
     XDestroyWindow(x.dpy, x.popup);
-    x.popup = -1;
+    x.popup = 0;
   }
 }
 
 /* Logic stolen and adapted from xbattbar... */
 static void show_popup(void) {
   XSetWindowAttributes att;
-  int boxw, boxh;
-  char diagmsg[64];
+  char msg[64];
   XftDraw *xftdraw = NULL;
   XftFont *xftfont;
   XftColor xftcolor;
   XGlyphInfo extents;
 
   if (time_remaining > 0) {
-    sprintf(diagmsg, "%s: %d%% - %d minutes",
-	    ac_line ? "Charging" : "Discharging",
-	    battery_life, time_remaining);
+    snprintf(msg, sizeof(msg), "%s: %d%% - %d minutes",
+	     ac_line ? "Charging" : "Discharging",
+	     battery_life, time_remaining);
   } else {
-    sprintf(diagmsg, "%s: %d%%",
-	    ac_line ? "Charging" : "Discharging",
-	    battery_life);
+    snprintf(msg, sizeof(msg), "%s: %d%%",
+	     ac_line ? "Charging" : "Discharging",
+	     battery_life);
   }
+  msg[sizeof msg - 1] = '\0'; // terminate if truncated
+
   xftfont = XftFontOpenName(x.dpy, x.screen, FONT);
   if (!xftfont)
     errx(1, "XftFontOpenName failed for %s", FONT);
   // Get width and height of message
-  XftTextExtentsUtf8(x.dpy, xftfont, (FcChar8 *)diagmsg, strlen(diagmsg),
+  XftTextExtentsUtf8(x.dpy, xftfont, (FcChar8 *)msg, (int)strlen(msg),
 		     &extents);
 
-  boxw = extents.width + 20;
-  boxh = extents.height + 20;
+  int boxw = extents.width + 20;
+  int boxh = extents.height + 20;
 
-  if(x.popup != -1) kill_popup();
+  if(x.popup != 0) kill_popup();
   x.popup = XCreateSimpleWindow(x.dpy, DefaultRootWindow(x.dpy),
 				(x.width-boxw)/2,
 				(x.height-boxh)/2,
-				boxw, boxh,
+				(unsigned int)boxw, (unsigned int)boxh,
 				1,         // width
 				x.magenta, //border
 				x.black);  // background
@@ -127,8 +132,8 @@ static void show_popup(void) {
 				0xffff }; // opacity
   XftColorAllocValue(x.dpy, DefaultVisual(x.dpy, x.screen),
 		     x.colormap, &render_color, &xftcolor);
-  XftDrawStringUtf8(xftdraw, &xftcolor, xftfont, 10, 30, (FcChar8 *)diagmsg,
-		    strlen(diagmsg));
+  XftDrawStringUtf8(xftdraw, &xftcolor, xftfont, 10, 30, (FcChar8 *)msg,
+		    (int)strlen(msg));
 
   // Free Xft resources
   XftDrawDestroy(xftdraw);
@@ -137,36 +142,42 @@ static void show_popup(void) {
 	       x.colormap, &xftcolor);
 }
 
-static void draw_discharging(int left) {
+static inline int pct_to_pixels(int total, unsigned int pct) {
+  // do signed arithmetic to avoid overflow by promoting to long if needed
+  long r = (long)total * (long)pct;
+  return (int)(r/100);
+}
+
+static void draw_discharging(unsigned int left) {
   if (x.position == 'b' || x.position == 't') { // horizontal
-    int p = x.width * left / 100;
+    int p = pct_to_pixels(x.width, left);
     XSetForeground(x.dpy, x.gc, x.magenta);
-    XFillRectangle(x.dpy, x.bar, x.gc, 0, 0, p, x.size);
+    XFillRectangle(x.dpy, x.bar, x.gc, 0, 0, (unsigned int)p, x.size);
     XSetForeground(x.dpy, x.gc, (battery_life < 25 ? x.red : x.yellow));
-    XFillRectangle(x.dpy, x.bar, x.gc, p, 0, x.width, x.size);
+    XFillRectangle(x.dpy, x.bar, x.gc, p, 0, (unsigned int)(x.width-p), x.size);
   } else {
-    int p = x.height * left / 100;
+    int p = pct_to_pixels(x.height, left);
     XSetForeground(x.dpy, x.gc, x.magenta);
-    XFillRectangle(x.dpy, x.bar, x.gc, 0, x.height-p, x.size, x.height);
+    XFillRectangle(x.dpy, x.bar, x.gc, 0, x.height-p, x.size, (unsigned int)p);
     XSetForeground(x.dpy, x.gc, (battery_life < 25 ? x.red : x.yellow));
-    XFillRectangle(x.dpy, x.bar, x.gc, 0, 0, x.size, x.height-p);
+    XFillRectangle(x.dpy, x.bar, x.gc, 0, 0, x.size, (unsigned int)(x.height-p));
   }
   XFlush(x.dpy);
 }
 
-static void draw_charging(int left) {
+static void draw_charging(unsigned int left) {
   if (x.position == 'b' || x.position == 't') {
-    int p = x.width * left / 100;
+    int p = pct_to_pixels(x.width, left);
     XSetForeground(x.dpy, x.gc, x.green);
-    XFillRectangle(x.dpy, x.bar, x.gc, 0, 0, p, x.size);
+    XFillRectangle(x.dpy, x.bar, x.gc, 0, 0, (unsigned int)p, x.size);
     XSetForeground(x.dpy, x.gc, (battery_life < 75 ? x.yellow : x.olive));
-    XFillRectangle(x.dpy, x.bar, x.gc, p+1, 0, x.width, x.size);
+    XFillRectangle(x.dpy, x.bar, x.gc, p+1, 0, (unsigned int)(x.width-p), x.size);
   } else {
-    int p = x.height * left / 100;
+    int p = pct_to_pixels(x.height, left);
     XSetForeground(x.dpy, x.gc, x.green);
-    XFillRectangle(x.dpy, x.bar, x.gc, 0, x.height - p, x.size, x.height);
+    XFillRectangle(x.dpy, x.bar, x.gc, 0, x.height-p, x.size, (unsigned int)p);
     XSetForeground(x.dpy, x.gc, (battery_life < 75 ? x.yellow : x.olive));
-    XFillRectangle(x.dpy, x.bar, x.gc, 0, 0, x.size, x.height - p);
+    XFillRectangle(x.dpy, x.bar, x.gc, 0, 0, x.size, (unsigned int)(x.height-p));
   }
   XFlush(x.dpy);
 }
@@ -181,7 +192,8 @@ static void redraw(void) {
 }
 
 static void battery_status(void) {
-  int a, l, t;
+  int a, t;
+  unsigned int l;
   size_t a_size, l_size, t_size;
 
   a_size = sizeof(a);
@@ -205,7 +217,7 @@ static void battery_status(void) {
   redraw();
 }
 
-static long getcolor(const char *color) {
+static unsigned long getcolor(const char *color) {
   int rc;
   XColor tcolor;
 
@@ -214,11 +226,6 @@ static long getcolor(const char *color) {
     errx(1, "can't allocate %s", color);
 
   return tcolor.pixel;
-}
-
-static void handler(int sig) {
-  XCloseDisplay(x.dpy);
-  exit(0);
 }
 
 static void init_x(const char *display) {
@@ -234,7 +241,7 @@ static void init_x(const char *display) {
   x.screen	= DefaultScreen(x.dpy);
   x.width	= DisplayWidth(x.dpy, x.screen);
   x.height	= DisplayHeight(x.dpy, x.screen);
-  x.popup	= -1;
+  x.popup	= None;
   x.colormap	= DefaultColormap(x.dpy, DefaultScreen(x.dpy));
   x.black	= getcolor("black");
   x.magenta	= getcolor("magenta");
@@ -247,24 +254,24 @@ static void init_x(const char *display) {
   switch (x.position) {
   case 'b':
     left = 0;
-    height = x.size;
+    height = (int)x.size;
     top = x.height - height;
     width = x.width;
     break;
   case 't':
     left = 0;
     top = 0;
-    height = x.size;
+    height = (int)x.size;
     width = x.width;
     break;
   case 'l':
     left = 0;
     top = 0;
     height = x.height;
-    width = x.size;
+    width = (int)x.size;
     break;
   case 'r':
-    width = x.size;
+    width = (int)x.size;
     left = x.width - width;
     top = 0;
     height = x.height;
@@ -272,7 +279,7 @@ static void init_x(const char *display) {
   }
 
   x.bar = XCreateSimpleWindow(x.dpy, RootWindow(x.dpy, x.screen),
-			      left, top, width, height,
+			      left, top, (unsigned int)width, (unsigned int)height,
 			      0, x.black, x.black);
 
   if (!(rc = XStringListToTextProperty(&progname, 1, &progname_prop)))
@@ -297,15 +304,24 @@ static void init_x(const char *display) {
   XSync(x.dpy, False);
 }
 
+static void handler(int sig) { (void)sig; terminate = 1; }
+
 int main(int argc, char* argv[]) {
-  char *display = NULL, *p;
+  char *display = NULL;
+  struct sigaction sa;
   struct timeval tv;
   XEvent event;
   int c;
 
-  bzero(&x, sizeof(struct xinfo));
+  memset(&x, 0, sizeof(struct xinfo));
   x.size = DEFSIZE;
   x.position = 0;
+
+  memset(&sa, 0, sizeof(sa));
+  sa.sa_handler = handler;
+  sa.sa_flags = 0; // ensure syscalls like select can be interrupted
+  if (sigaction(SIGINT, &sa, NULL) == -1 || sigaction(SIGTERM, &sa, NULL) == -1)
+    errx(1, "Uh-oh! Something went awry handling signals!");
 
   while ((c = getopt_long_only(argc, argv, "", longopts, NULL)) != -1) {
     switch (c) {
@@ -319,12 +335,10 @@ int main(int argc, char* argv[]) {
       if (x.position)
 	errx(1, "only one of -top, -bottom, -left, "
 		"-right allowed");
-      x.position = c;
+      x.position = (char)c;
       break;
     case 's':
-      x.size = strtol(optarg, &p, 10);
-      if (*p || x.size < 1)
-	errx(1, "illegal value -- %s", optarg);
+      x.size = (unsigned int)atoi(optarg);
       break;
     case 'h':
       usage();
@@ -338,9 +352,6 @@ int main(int argc, char* argv[]) {
   init_x(display);
   battery_status();
 
-  signal(SIGINT, handler);
-  signal(SIGTERM, handler);
-
   for (;;) {
     fd_set fds; // Set of file descriptors for select()
     int xfd = ConnectionNumber(x.dpy);
@@ -353,11 +364,15 @@ int main(int argc, char* argv[]) {
     // Wait for either an X event or timeout
     int ret = select(xfd + 1, &fds, NULL, NULL, &tv);
 
-    if (ret == 0) { // timeout: poll battery
+    if (terminate) break;
+    if (ret < 0) {
+      if (errno == EINTR) {
+	continue;
+      }
+      errx(1, "Uh-oh - something went awry waiting for select!");
+    } else if (ret == 0) { // timeout: poll battery
       battery_status();
-    }
-
-    if (ret > 0) { // At least one X event
+    } else if (ret > 0) { // At least one X event
       while (XPending(x.dpy)) {
 	XNextEvent(x.dpy, &event);
 	if (event.type == EnterNotify) {
@@ -373,5 +388,6 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  exit(1);
+  XCloseDisplay(x.dpy);
+  exit(0);
 }
