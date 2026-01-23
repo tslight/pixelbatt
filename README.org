@@ -1,0 +1,7 @@
+#+TITLE: PIXELBATT
+
+Complete refactor of xbattbar, inspired by the simpler code of pixelclock.
+
+#+begin_src text
+  usage: pixelbatt [-display host:dpy] [-help] [-left|-right|-top|-bottom] [-size <pixels>]
+#+end_src
