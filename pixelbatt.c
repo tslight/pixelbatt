@@ -1,4 +1,5 @@
-/* -*- tab-width: 8; c-basic-offset: 8; indent-tabs-mode: t -*-
+/* -*- tab-width: 2; c-basic-offset: 2; indent-tabs-mode: nil -*-
+ * vim: set ts=2 sw=2 expandtab:
  *
  * A different way of looking at power.
  *

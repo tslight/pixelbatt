@@ -1,4 +1,4 @@
-#+TITLE: PIXELBATT
+#+TITLE: Pixelbatt
 
 /"A different way of looking at power."/
 
