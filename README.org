@@ -6,12 +6,12 @@ FreeBSD specific refactor of xbattbar, inspired by [[https://github.com/tslight/
 
 #+begin_src text
   pixelbatt: usage:
-  [-help]                     Show this message and exit.
-  [-above]                    Keep above all other windows.
-  [-font <xftfont>]           What font to use for the popup.
-  [-size <pixels>]            How big should the bar be.
-  [-poll <seconds>]           How often to check on the battery.
-  [-warn <percent>]           When should we start alerting.
-  [-display host:dpy]         Which display do we want to be on.
-  [-left|-right|-top|-bottom] Which side of the screen to use.
+  [-above]                    Forces bar to always be on top.
+  [-size <pixels>]            Width of bar in pixels.
+  [-hide <percent>]           Defaults to 98. 0 means never hide.
+  [-font <xftfont>]           Defaults to monospace:bold:size=18.
+  [-poll <seconds>]           Defaults to checking every 10 seconds.
+  [-warn <percent>]           Keep showing popup when this percent is reached.
+  [-display <host:dpy>]       Specify a display to use.
+  [-left|-right|-top|-bottom] Specify screen edge.
 #+end_src

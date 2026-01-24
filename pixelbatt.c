@@ -24,11 +24,12 @@
 #include <X11/Xutil.h>
 #include <X11/Xft/Xft.h>
 
-#define DEFSIZE 2
+#define DEFFONT "monospace:bold:size=18"
+#define DEFHIDE 98
 #define DEFPOS 'l'
 #define DEFPOLL 10
+#define DEFSIZE 2
 #define DEFWARN 10
-#define DEFFONT "monospace:bold:size=18"
 
 static volatile sig_atomic_t terminate = 0;
 int ac_line, time_remaining;
@@ -36,6 +37,8 @@ unsigned int battery_life;
 static char* progname;
 // Whether or not to stay on top of all other windows
 static int above = 0;
+// Hide the bar at this percent. 0 means never hide.
+static unsigned int hidepct = DEFHIDE;
 static char* font = DEFFONT;
 
 static struct xinfo {
@@ -52,13 +55,13 @@ static struct xinfo {
 } x;
 
 static const struct option longopts[] = {
-  { "help",	no_argument,		NULL, 'h' },
-  { "above",	no_argument,		NULL, 'a' },
+  { "hide",	required_argument,	NULL, 'h' },
   { "font",	required_argument,	NULL, 'f' },
   { "size",	required_argument,	NULL, 's' },
   { "poll",	required_argument,	NULL, 'p' },
   { "warn",	required_argument,	NULL, 'w' },
   { "display",	required_argument,	NULL, 'd' },
+  { "above",	no_argument,		NULL, 'a' },
   { "left",	no_argument,		NULL, 'l' },
   { "right",	no_argument,		NULL, 'r' },
   { "top",	no_argument,		NULL, 't' },
@@ -67,15 +70,16 @@ static const struct option longopts[] = {
 };
 
 static void usage(void) {
-  errx(1, "usage:\n"
-	  "[-help]                     Show this message and exit.\n"
-	  "[-above]                    Keep above all other windows.\n"
-	  "[-font <xftfont>]           What font to use for the popup.\n"
-	  "[-size <pixels>]            How big should the bar be.\n"
-	  "[-poll <seconds>]           How often to check on the battery.\n"
-	  "[-warn <percent>]           When should we start alerting.\n"
-	  "[-display host:dpy]         Which display do we want to be on.\n"
-	  "[-left|-right|-top|-bottom] Which side of the screen to use. \n");
+  errx(1,
+       "usage:\n"
+       "[-above]                    Forces bar to always be on top.\n"
+       "[-size <pixels>]            Width of bar in pixels.\n"
+       "[-hide <percent>]           Defaults to 98. 0 means never hide.\n"
+       "[-font <xftfont>]           Defaults to monospace:bold:size=18.\n"
+       "[-poll <seconds>]           Defaults to checking every 10 seconds.\n"
+       "[-warn <percent>]           Keep showing popup when this percent is reached.\n"
+       "[-display <host:dpy>]       Specify a display to use.\n"
+       "[-left|-right|-top|-bottom] Specify screen edge.");
 }
 
 static void kill_popup(void) {
@@ -229,6 +233,17 @@ static void battery_status(void) {
   ac_line = a;
   battery_life = l;
   time_remaining = t;
+
+  if (hidepct > 0) {
+    if (ac_line && battery_life > hidepct) {
+      XUnmapWindow(x.dpy, x.bar);
+      XSync(x.dpy, False);
+    } else {
+      XMapWindow(x.dpy, x.bar);
+      XSync(x.dpy, False);
+    }
+  }
+
   redraw();
 }
 
@@ -364,6 +379,9 @@ int main(int argc, char* argv[]) {
       if (strnlen(optarg, 1024) >= 1024) errx(1, "font name too long");
       font = optarg;
       break;
+    case 'h':
+      safe_atoui(optarg, &hidepct);
+      break;
     case 'b':
     case 't':
     case 'l':
@@ -378,7 +396,6 @@ int main(int argc, char* argv[]) {
       safe_atoui(optarg, &x.size);
       if (x.size > 1000) x.size = DEFSIZE;
       break;
-    case 'h':
     default:
       usage();
     }
