@@ -321,6 +321,7 @@ static void init_x(const char *display) {
 static void handler(int sig) { (void)sig; terminate = 1; }
 
 static void safe_atoui(const char *a, unsigned *ui) {
+  if (!a || !ui) errx(1, "nothing passed to safe_atoui");
   char *end; errno = 0;
   unsigned long l = strtoul(a, &end, 10);
   if (end == a || *end != '\0') errx(1, "invalid integer: %s", a);
@@ -334,7 +335,7 @@ int main(int argc, char* argv[]) {
   char *display = NULL;
   struct sigaction sa;
   struct timeval tv;
-  unsigned int p;
+  unsigned int poll = DEFPOLL;
   XEvent event;
   int c;
 
@@ -368,8 +369,9 @@ int main(int argc, char* argv[]) {
       x.position = (char)c;
       break;
     case 'p':
-      safe_atoui(optarg, &p);
-      if (p > 600) p = DEFPOLL;
+      safe_atoui(optarg, &poll);
+      if (poll > 600) poll = DEFPOLL;
+      break;
     case 's':
       safe_atoui(optarg, &x.size);
       if (x.size > 1000) x.size = DEFSIZE;
@@ -391,7 +393,7 @@ int main(int argc, char* argv[]) {
     FD_ZERO(&fds);     // Clear the set of file descriptors
     FD_SET(xfd, &fds); // Add the X server connection to the set
 
-    tv.tv_sec  = p;
+    tv.tv_sec  = poll;
     tv.tv_usec = 0; // No microseconds
 
     // Wait for either an X event or timeout

@@ -1,6 +1,8 @@
 CC	= cc
-CFLAGS  = -O2 -Wall -Wextra -Wshadow -Wunused -pedantic -std=c11
-CFLAGS += -Wmissing-prototypes -Wstrict-prototypes -Wconversion
+CFLAGS  = -O2 -pedantic -std=c11
+CFLAGS += -Wall -Wconversion -Wextra -Wshadow -Wunused
+CFLAGS += -Wmissing-prototypes -Wstrict-prototypes
+CFLAGS += -Wuninitialized -Wimplicit-fallthrough
 PREFIX	= /usr/local
 BINDIR	= $(DESTDIR)$(PREFIX)/bin
 
