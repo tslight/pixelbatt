@@ -1,6 +1,8 @@
 /* -*- tab-width: 8; c-basic-offset: 8; indent-tabs-mode: t -*-
  *
- * Complete refactor of xbattbar, inspired by the simpler code of pixelclock.
+ * A different way of looking at power.
+ *
+ * FreeBSD specific refactor of xbattbar, inspired by pixelclock.
  *
  * Copyright (c) 2025 Toby Slight <tslight@pm.me>
  *

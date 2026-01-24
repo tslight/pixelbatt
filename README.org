@@ -1,7 +1,17 @@
 #+TITLE: PIXELBATT
 
-Complete refactor of xbattbar, inspired by the simpler code of pixelclock.
+/"A different way of looking at power."/
+
+FreeBSD specific refactor of xbattbar, inspired by [[https://github.com/tslight/pixelclock][pixelclock]].
 
 #+begin_src text
-  usage: pixelbatt [-display host:dpy] [-help] [-left|-right|-top|-bottom] [-size <pixels>]
+  pixelbatt: usage:
+  [-help]                     Show this message and exit.
+  [-above]                    Keep above all other windows.
+  [-font <xftfont>]           What font to use for the popup.
+  [-size <pixels>]            How big should the bar be.
+  [-poll <seconds>]           How often to check on the battery.
+  [-warn <percent>]           When should we start alerting.
+  [-display host:dpy]         Which display do we want to be on.
+  [-left|-right|-top|-bottom] Which side of the screen to use.
 #+end_src
