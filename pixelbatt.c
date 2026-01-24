@@ -18,26 +18,25 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <sys/types.h>
-
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xft/Xft.h>
 
 #define DEFSIZE 2
 #define DEFPOS 'l'
-#define FONT "monospace:bold:size=18"
-#define POLLTIME 10
-#define RAISE 1
-#define WARNLEVEL 10
+#define DEFPOLL 10
+#define DEFWARN 10
+#define DEFFONT "monospace:bold:size=18"
 
 static volatile sig_atomic_t terminate = 0;
-
 int ac_line, time_remaining;
 unsigned int battery_life;
+static char* progname;
+// Whether or not to stay on top of all other windows
+static int above = 0;
+static char* font = DEFFONT;
 
-char* progname = "pixelbatt";
-
-struct xinfo {
+static struct xinfo {
   Display* dpy;
   int width, height;
   int screen;
@@ -50,26 +49,31 @@ struct xinfo {
   unsigned long black, green, magenta, yellow, red, blue, olive;
 } x;
 
-const struct option longopts[] = {
-  { "display",	required_argument,	NULL,	'd' },
-  { "size",	required_argument,	NULL,	's' },
-  { "left",	no_argument,		NULL,	'l' },
-  { "right",	no_argument,		NULL,	'r' },
-  { "top",	no_argument,		NULL,	't' },
-  { "bottom",	no_argument,		NULL,	'b' },
-  { "help",	no_argument,		NULL,	'h' },
-  { NULL,	0,			NULL,	0   }
+static const struct option longopts[] = {
+  { "help",	no_argument,		NULL, 'h' },
+  { "above",	no_argument,		NULL, 'a' },
+  { "font",	required_argument,	NULL, 'f' },
+  { "size",	required_argument,	NULL, 's' },
+  { "poll",	required_argument,	NULL, 'p' },
+  { "warn",	required_argument,	NULL, 'w' },
+  { "display",	required_argument,	NULL, 'd' },
+  { "left",	no_argument,		NULL, 'l' },
+  { "right",	no_argument,		NULL, 'r' },
+  { "top",	no_argument,		NULL, 't' },
+  { "bottom",	no_argument,		NULL, 'b' },
+  { NULL,	0,			NULL, 0   }
 };
 
-extern char *__progname;
-
 static void usage(void) {
-  fprintf(stderr, "usage: %s %s\n", __progname,
-	  "[-display host:dpy] "
-	  "[-help] "
-	  "[-left|-right|-top|-bottom] "
-	  "[-size <pixels>] ");
-  exit(1);
+  errx(1, "usage:\n"
+	  "[-help]                     Show this message and exit.\n"
+	  "[-above]                    Keep above all other windows.\n"
+	  "[-font <xftfont>]           What font to use for the popup.\n"
+	  "[-size <pixels>]            How big should the bar be.\n"
+	  "[-poll <seconds>]           How often to check on the battery.\n"
+	  "[-warn <percent>]           When should we start alerting.\n"
+	  "[-display host:dpy]         Which display do we want to be on.\n"
+	  "[-left|-right|-top|-bottom] Which side of the screen to use. \n");
 }
 
 static void kill_popup(void) {
@@ -88,6 +92,7 @@ static void show_popup(void) {
   XftFont *xftfont;
   XftColor xftcolor;
   XGlyphInfo extents;
+  const int padw = 2, padh = 2;
 
   if (time_remaining > 0) {
     snprintf(msg, sizeof(msg), "%s: %d%% - %d minutes",
@@ -99,24 +104,27 @@ static void show_popup(void) {
 	     battery_life);
   }
 
-  xftfont = XftFontOpenName(x.dpy, x.screen, FONT);
-  if (!xftfont)
-    errx(1, "XftFontOpenName failed for %s", FONT);
+  xftfont = XftFontOpenName(x.dpy, x.screen, font);
+  if (!xftfont) err(1, "XftFontOpenName failed for %s", font);
   // Get width and height of message
   XftTextExtentsUtf8(x.dpy, xftfont, (FcChar8 *)msg, (int)strlen(msg),
 		     &extents);
 
-  int boxw = extents.width + 20;
-  int boxh = extents.height + 20;
+  int boxw = extents.xOff + 2 * padw; // offset better than width for some reason!
+  int boxh = (xftfont->ascent + xftfont->descent) + 2 * padh; // reliable line height
+  /* clamp to screen size to avoid (unsigned) wrapping and BadValue */
+  if (boxw > x.width) boxw = x.width - 2;
+  if (boxh > x.height) boxh = x.height - 2;
+  int left = (x.width - boxw) / 2;
+  if (left < 0) left = 0;
+  int top  = (x.height - boxh) / 2;
+  if (top < 0) top = 0;
 
   if(x.popup != 0) kill_popup();
   x.popup = XCreateSimpleWindow(x.dpy, DefaultRootWindow(x.dpy),
-				(x.width-boxw)/2,
-				(x.height-boxh)/2,
+				left, top,
 				(unsigned int)boxw, (unsigned int)boxh,
-				1,         // width
-				x.magenta, //border
-				x.black);  // background
+				1, x.magenta, x.black);
 
   att.override_redirect = True;
   XChangeWindowAttributes(x.dpy, x.popup, CWOverrideRedirect, &att);
@@ -126,14 +134,17 @@ static void show_popup(void) {
 			  x.popup,
 			  DefaultVisual(x.dpy, x.screen),
 			  x.colormap);
+  if (!xftdraw) err(1, "XftDrawCreate");
+
   XRenderColor render_color = { 0x0000,   // red
 				0xffff,   // green
 				0x0000,   // blue
 				0xffff }; // opacity
-  XftColorAllocValue(x.dpy, DefaultVisual(x.dpy, x.screen),
-		     x.colormap, &render_color, &xftcolor);
-  XftDrawStringUtf8(xftdraw, &xftcolor, xftfont, 10, 30, (FcChar8 *)msg,
-		    (int)strlen(msg));
+  if (!XftColorAllocValue(x.dpy, DefaultVisual(x.dpy, x.screen),
+			  x.colormap, &render_color, &xftcolor))
+    err(1, "XftColorAllocValue");
+  XftDrawStringUtf8(xftdraw, &xftcolor, xftfont, padw, padh + xftfont->ascent,
+		    (FcChar8 *)msg, (int)strlen(msg));
 
   // Free Xft resources
   XftDrawDestroy(xftdraw);
@@ -189,7 +200,7 @@ static void redraw(void) {
     draw_charging(battery_life);
   } else {
     draw_discharging(battery_life);
-    if (battery_life < WARNLEVEL) show_popup();
+    if (battery_life < DEFWARN) show_popup();
   }
 }
 
@@ -200,17 +211,17 @@ static void battery_status(void) {
 
   a_size = sizeof(a);
   if (sysctlbyname("hw.acpi.acline", &a, &a_size, NULL, 0) == -1) {
-    errx(1, "%s failed to get AC-line status.\n", progname);
+    err(1, "failed to get AC-line status.\n");
   }
 
   l_size = sizeof(l);
   if (sysctlbyname("hw.acpi.battery.life", &l, &l_size, NULL, 0) == -1) {
-    errx(1, "%s failed to get battery life status.\n", progname);
+    err(1, "failed to get battery life status.\n");
   }
 
   t_size = sizeof(t);
   if (sysctlbyname("hw.acpi.battery.time", &t, &t_size, NULL, 0) == -1) {
-    errx(1, "%s failed to get battery time status.\n", progname);
+    err(1, "failed to get battery time status.\n");
   }
 
   ac_line = a;
@@ -225,7 +236,7 @@ static unsigned long getcolor(const char *color) {
 
   if (!(rc = XAllocNamedColor(x.dpy, x.colormap, color, &tcolor,
 			      &tcolor)))
-    errx(1, "can't allocate %s", color);
+    err(1, "can't allocate %s", color);
 
   return tcolor.pixel;
 }
@@ -238,7 +249,7 @@ static void init_x(const char *display) {
   XTextProperty progname_prop;
 
   if (!(x.dpy = XOpenDisplay(display)))
-    errx(1, "unable to open display %s", XDisplayName(display));
+    err(1, "unable to open display %s", XDisplayName(display));
 
   x.screen	= DefaultScreen(x.dpy);
   x.width	= DisplayWidth(x.dpy, x.screen);
@@ -285,15 +296,16 @@ static void init_x(const char *display) {
 			      0, x.black, x.black);
 
   if (!(rc = XStringListToTextProperty(&progname, 1, &progname_prop)))
-    errx(1, "XStringListToTextProperty");
+    err(1, "XStringListToTextProperty");
 
   XSetWMName(x.dpy, x.bar, &progname_prop);
+  if (progname_prop.value) XFree(progname_prop.value);
 
   attributes.override_redirect = True; // brute force position/size and decoration
   XChangeWindowAttributes(x.dpy, x.bar, CWOverrideRedirect, &attributes);
 
   if (!(x.gc = XCreateGC(x.dpy, x.bar, 0, &values)))
-    errx(1, "XCreateGC");
+    err(1, "XCreateGC");
 
   XMapWindow(x.dpy, x.bar);
 
@@ -308,10 +320,21 @@ static void init_x(const char *display) {
 
 static void handler(int sig) { (void)sig; terminate = 1; }
 
+static void safe_atoui(const char *a, unsigned *ui) {
+  char *end; errno = 0;
+  unsigned long l = strtoul(a, &end, 10);
+  if (end == a || *end != '\0') errx(1, "invalid integer: %s", a);
+  if (a[0] == '-') errx(1, "unsigned only: %s", a);
+  if (errno == ERANGE || l > UINT_MAX) err(1, "out of range: %s", optarg);
+  *ui = (unsigned int)l;
+}
+
 int main(int argc, char* argv[]) {
+  progname = argv[0];
   char *display = NULL;
   struct sigaction sa;
   struct timeval tv;
+  unsigned int p;
   XEvent event;
   int c;
 
@@ -323,27 +346,35 @@ int main(int argc, char* argv[]) {
   sa.sa_handler = handler;
   sa.sa_flags = 0; // ensure syscalls like select can be interrupted
   if (sigaction(SIGINT, &sa, NULL) == -1 || sigaction(SIGTERM, &sa, NULL) == -1)
-    errx(1, "Uh-oh! Something went awry handling signals!");
+    err(1, "sigaction");
 
   while ((c = getopt_long_only(argc, argv, "", longopts, NULL)) != -1) {
     switch (c) {
+    case 'a':
+      above = 1;
+      break;
     case 'd':
       display = optarg;
+      break;
+    case 'f':
+      if (!optarg || optarg[0] == '\0') errx(1, "empty font name");
+      if (strnlen(optarg, 1024) >= 1024) errx(1, "font name too long");
+      font = optarg;
       break;
     case 'b':
     case 't':
     case 'l':
     case 'r':
-      if (x.position)
-	errx(1, "only one of -top, -bottom, -left, "
-		"-right allowed");
       x.position = (char)c;
       break;
+    case 'p':
+      safe_atoui(optarg, &p);
+      if (p > 600) p = DEFPOLL;
     case 's':
-      x.size = (unsigned int)atoi(optarg);
+      safe_atoui(optarg, &x.size);
+      if (x.size > 1000) x.size = DEFSIZE;
       break;
     case 'h':
-      usage();
     default:
       usage();
     }
@@ -360,7 +391,7 @@ int main(int argc, char* argv[]) {
     FD_ZERO(&fds);     // Clear the set of file descriptors
     FD_SET(xfd, &fds); // Add the X server connection to the set
 
-    tv.tv_sec  = POLLTIME;
+    tv.tv_sec  = p;
     tv.tv_usec = 0; // No microseconds
 
     // Wait for either an X event or timeout
@@ -370,7 +401,7 @@ int main(int argc, char* argv[]) {
 
     if (ret < 0) {
       if (errno == EINTR) continue;
-      errx(1, "Uh-oh - something went awry waiting for select!");
+      err(1, "select");
     } else if (ret == 0) { // timeout: poll battery
       battery_status();
     } else if (ret > 0) { // At least one X event
@@ -381,7 +412,7 @@ int main(int argc, char* argv[]) {
 	} else if (event.type == LeaveNotify) {
 	  kill_popup();
 	} else if (event.type == VisibilityNotify) {
-	  if (RAISE) XRaiseWindow(x.dpy, x.bar);
+	  if (above) XRaiseWindow(x.dpy, x.bar);
 	} else if (event.type == Expose) {
 	  redraw();
 	}
