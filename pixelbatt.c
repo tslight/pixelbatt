@@ -103,19 +103,19 @@ static void show_popup(void) {
 
   if (time_remaining > 0) {
     snprintf(msg, sizeof(msg), "%s: %d%% - %d minutes",
-	     ac_line ? "Charging" : "Discharging",
-	     battery_life, time_remaining);
+             ac_line ? "Charging" : "Discharging",
+             battery_life, time_remaining);
   } else {
     snprintf(msg, sizeof(msg), "%s: %d%%",
-	     ac_line ? "Charging" : "Discharging",
-	     battery_life);
+             ac_line ? "Charging" : "Discharging",
+             battery_life);
   }
 
   xftfont = XftFontOpenName(x.dpy, x.screen, font);
   if (!xftfont) err(1, "XftFontOpenName failed for %s", font);
   // Get width and height of message
   XftTextExtentsUtf8(x.dpy, xftfont, (FcChar8 *)msg, (int)strlen(msg),
-		     &extents);
+                     &extents);
 
   int boxw = extents.xOff + 2 * padw; // offset better than width for some reason!
   int boxh = (xftfont->ascent + xftfont->descent) + 2 * padh; // reliable line height
@@ -129,35 +129,35 @@ static void show_popup(void) {
 
   if(x.popup != 0) kill_popup();
   x.popup = XCreateSimpleWindow(x.dpy, DefaultRootWindow(x.dpy),
-				left, top,
-				(unsigned int)boxw, (unsigned int)boxh,
-				1, x.magenta, x.black);
+                                left, top,
+                                (unsigned int)boxw, (unsigned int)boxh,
+                                1, x.magenta, x.black);
 
   att.override_redirect = True;
   XChangeWindowAttributes(x.dpy, x.popup, CWOverrideRedirect, &att);
   XMapWindow(x.dpy, x.popup);
 
   xftdraw = XftDrawCreate(x.dpy,
-			  x.popup,
-			  DefaultVisual(x.dpy, x.screen),
-			  x.colormap);
+                          x.popup,
+                          DefaultVisual(x.dpy, x.screen),
+                          x.colormap);
   if (!xftdraw) err(1, "XftDrawCreate");
 
   XRenderColor render_color = { 0x0000,   // red
-				0xffff,   // green
-				0x0000,   // blue
-				0xffff }; // opacity
+                                0xffff,   // green
+                                0x0000,   // blue
+                                0xffff }; // opacity
   if (!XftColorAllocValue(x.dpy, DefaultVisual(x.dpy, x.screen),
-			  x.colormap, &render_color, &xftcolor))
+                          x.colormap, &render_color, &xftcolor))
     err(1, "XftColorAllocValue");
   XftDrawStringUtf8(xftdraw, &xftcolor, xftfont, padw, padh + xftfont->ascent,
-		    (FcChar8 *)msg, (int)strlen(msg));
+                    (FcChar8 *)msg, (int)strlen(msg));
 
   // Free Xft resources
   XftDrawDestroy(xftdraw);
   XftFontClose(x.dpy, xftfont);
   XftColorFree(x.dpy, DefaultVisual(x.dpy, x.screen),
-	       x.colormap, &xftcolor);
+               x.colormap, &xftcolor);
 }
 
 static inline int pct_to_pixels(int total, unsigned int pct) {
@@ -240,7 +240,7 @@ static void battery_status(void) {
       XUnmapWindow(x.dpy, x.bar);
       XSync(x.dpy, False);
     } else {
-      XMapWindow(x.dpy, x.bar);
+      (above ? XMapRaised(x.dpy, x.bar) : XMapWindow(x.dpy, x.bar));
       XSync(x.dpy, False);
     }
   }
@@ -253,7 +253,7 @@ static unsigned long getcolor(const char *color) {
   XColor tcolor;
 
   if (!(rc = XAllocNamedColor(x.dpy, x.colormap, color, &tcolor,
-			      &tcolor)))
+                              &tcolor)))
     err(1, "can't allocate %s", color);
 
   return tcolor.pixel;
@@ -310,8 +310,8 @@ static void init_x(const char *display) {
   }
 
   x.bar = XCreateSimpleWindow(x.dpy, RootWindow(x.dpy, x.screen),
-			      left, top, (unsigned int)width, (unsigned int)height,
-			      0, x.black, x.black);
+                              left, top, (unsigned int)width, (unsigned int)height,
+                              0, x.black, x.black);
 
   if (!(rc = XStringListToTextProperty(&progname, 1, &progname_prop)))
     err(1, "XStringListToTextProperty");
@@ -328,9 +328,9 @@ static void init_x(const char *display) {
   XMapWindow(x.dpy, x.bar);
 
   XSelectInput(x.dpy, x.bar, ExposureMask|
-			     EnterWindowMask|
-			     LeaveWindowMask|
-			     VisibilityChangeMask);
+                             EnterWindowMask|
+                             LeaveWindowMask|
+                             VisibilityChangeMask);
 
   XFlush(x.dpy);
   XSync(x.dpy, False);
@@ -428,16 +428,16 @@ int main(int argc, char* argv[]) {
       battery_status();
     } else if (ret > 0) { // At least one X event
       while (XPending(x.dpy)) {
-	XNextEvent(x.dpy, &event);
-	if (event.type == EnterNotify) {
-	  show_popup();
-	} else if (event.type == LeaveNotify) {
-	  kill_popup();
-	} else if (event.type == VisibilityNotify) {
-	  if (above) XRaiseWindow(x.dpy, x.bar);
-	} else if (event.type == Expose) {
-	  redraw();
-	}
+        XNextEvent(x.dpy, &event);
+        if (event.type == EnterNotify) {
+          show_popup();
+        } else if (event.type == LeaveNotify) {
+          kill_popup();
+        } else if (event.type == VisibilityNotify) {
+          if (above) XRaiseWindow(x.dpy, x.bar);
+        } else if (event.type == Expose) {
+          redraw();
+        }
       }
     }
   }
