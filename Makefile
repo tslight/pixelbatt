@@ -1,8 +1,6 @@
-# $Id: Makefile,v 1.4 2005/06/28 22:06:12 jcs Exp $
-# vim:ts=8
-
 CC	= cc
-CFLAGS	= -O2 -Wall -Wextra -Wshadow -Wunused -Wmissing-prototypes -Wstrict-prototypes -Wconversion -std=c11
+CFLAGS  = -O2 -Wall -Wextra -Wshadow -Wunused -pedantic -std=c11
+CFLAGS += -Wmissing-prototypes -Wstrict-prototypes -Wconversion
 PREFIX	= /usr/local
 BINDIR	= $(DESTDIR)$(PREFIX)/bin
 

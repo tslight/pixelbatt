@@ -75,6 +75,7 @@ static void usage(void) {
 static void kill_popup(void) {
   if ( x.popup != 0 ) {
     XDestroyWindow(x.dpy, x.popup);
+    XFlush(x.dpy);
     x.popup = 0;
   }
 }
@@ -97,7 +98,6 @@ static void show_popup(void) {
 	     ac_line ? "Charging" : "Discharging",
 	     battery_life);
   }
-  msg[sizeof msg - 1] = '\0'; // terminate if truncated
 
   xftfont = XftFontOpenName(x.dpy, x.screen, FONT);
   if (!xftfont)
@@ -143,8 +143,10 @@ static void show_popup(void) {
 }
 
 static inline int pct_to_pixels(int total, unsigned int pct) {
-  // do signed arithmetic to avoid overflow by promoting to long if needed
-  long r = (long)total * (long)pct;
+  // do signed arithmetic to avoid overflow. sanity check & clamp pixels first.
+  if (total > INT_MAX / 100) return (total / 100) * (int)pct;
+  // promote to long long if needed as we live in an era of 6k displays!
+  long long r = (long long)total * (long long)pct;
   return (int)(r/100);
 }
 
@@ -171,7 +173,7 @@ static void draw_charging(unsigned int left) {
     XSetForeground(x.dpy, x.gc, x.green);
     XFillRectangle(x.dpy, x.bar, x.gc, 0, 0, (unsigned int)p, x.size);
     XSetForeground(x.dpy, x.gc, (battery_life < 75 ? x.yellow : x.olive));
-    XFillRectangle(x.dpy, x.bar, x.gc, p+1, 0, (unsigned int)(x.width-p), x.size);
+    XFillRectangle(x.dpy, x.bar, x.gc, p, 0, (unsigned int)(x.width-p), x.size);
   } else {
     int p = pct_to_pixels(x.height, left);
     XSetForeground(x.dpy, x.gc, x.green);
@@ -364,11 +366,10 @@ int main(int argc, char* argv[]) {
     // Wait for either an X event or timeout
     int ret = select(xfd + 1, &fds, NULL, NULL, &tv);
 
-    if (terminate) break;
+    if (terminate) break; // check signal handler
+
     if (ret < 0) {
-      if (errno == EINTR) {
-	continue;
-      }
+      if (errno == EINTR) continue;
       errx(1, "Uh-oh - something went awry waiting for select!");
     } else if (ret == 0) { // timeout: poll battery
       battery_status();
