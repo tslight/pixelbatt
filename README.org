@@ -6,12 +6,12 @@ FreeBSD specific refactor of xbattbar, inspired by [[https://github.com/tslight/
 
 #+begin_src text
   pixelbatt: usage:
-  [-above]                    Forces bar to always be on top.
   [-size <pixels>]            Width of bar in pixels.
-  [-hide <percent>]           Defaults to 98. 0 means never hide.
-  [-font <xftfont>]           Defaults to monospace:bold:size=18.
+  [-hide <percent>]           Defaults to 98%. 0 means never hide.
+  [-font <xftfont>]           Defaults to 'monospace:bold:size=18'.
   [-poll <seconds>]           Defaults to checking every 10 seconds.
   [-warn <percent>]           Keep showing popup when this percent is reached.
   [-display <host:dpy>]       Specify a display to use.
+  [-unraise]                  Prevents bar from always being on top.
   [-left|-right|-top|-bottom] Specify screen edge.
 #+end_src
