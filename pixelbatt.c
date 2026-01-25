@@ -53,6 +53,7 @@ static struct xinfo {
   GC gc;
   Colormap colormap;
   unsigned long black, green, magenta, yellow, red, blue, olive;
+  XftFont *font;
 } x;
 
 static const struct option longopts[] = {
@@ -96,7 +97,6 @@ static void show_popup(void) {
   XSetWindowAttributes att;
   char msg[64];
   XftDraw *xftdraw = NULL;
-  XftFont *xftfont;
   XftColor xftcolor;
   XGlyphInfo extents;
   const int padw = 2, padh = 2;
@@ -111,14 +111,15 @@ static void show_popup(void) {
              battery_life);
   }
 
-  xftfont = XftFontOpenName(x.dpy, x.screen, font);
-  if (!xftfont) err(1, "XftFontOpenName failed for %s", font);
+  if (!x.font) { // cache to avoid calling on every popup
+    x.font = XftFontOpenName(x.dpy, x.screen, font);
+    if (!x.font) err(1, "XftFontOpenName failed for %s", font);
+  }
   // Get width and height of message
-  XftTextExtentsUtf8(x.dpy, xftfont, (FcChar8 *)msg, (int)strlen(msg),
-                     &extents);
+  XftTextExtentsUtf8(x.dpy, x.font, (FcChar8 *)msg, (int)strlen(msg), &extents);
 
   int boxw = extents.xOff + 2 * padw; // offset better than width for some reason!
-  int boxh = (xftfont->ascent + xftfont->descent) + 2 * padh; // reliable line height
+  int boxh = (x.font->ascent + x.font->descent) + 2 * padh; // reliable line height
   /* clamp to screen size to avoid (unsigned) wrapping and BadValue */
   if (boxw > x.width) boxw = x.width - 2;
   if (boxh > x.height) boxh = x.height - 2;
@@ -150,12 +151,12 @@ static void show_popup(void) {
   if (!XftColorAllocValue(x.dpy, DefaultVisual(x.dpy, x.screen),
                           x.colormap, &render_color, &xftcolor))
     err(1, "XftColorAllocValue");
-  XftDrawStringUtf8(xftdraw, &xftcolor, xftfont, padw, padh + xftfont->ascent,
+  XftDrawStringUtf8(xftdraw, &xftcolor, x.font, padw, padh + x.font->ascent,
                     (FcChar8 *)msg, (int)strlen(msg));
 
   // Free Xft resources
   XftDrawDestroy(xftdraw);
-  XftFontClose(x.dpy, xftfont);
+  XftFontClose(x.dpy, x.font);
   XftColorFree(x.dpy, DefaultVisual(x.dpy, x.screen),
                x.colormap, &xftcolor);
 }
@@ -238,10 +239,8 @@ static void battery_status(void) {
   if (hidepct > 0) {
     if (ac_line && battery_life > hidepct) {
       XUnmapWindow(x.dpy, x.bar);
-      XSync(x.dpy, False);
     } else {
       (above ? XMapRaised(x.dpy, x.bar) : XMapWindow(x.dpy, x.bar));
-      XSync(x.dpy, False);
     }
   }
 
