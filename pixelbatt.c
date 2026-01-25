@@ -85,10 +85,9 @@ static void usage(void) {
 }
 
 static void kill_popup(void) {
-  if ( x.popup != 0 ) {
-    XDestroyWindow(x.dpy, x.popup);
+  if ( x.popup != None ) {
+    XUnmapWindow(x.dpy, x.popup); // keep the window for reuse
     XFlush(x.dpy);
-    x.popup = 0;
   }
 }
 
@@ -115,6 +114,7 @@ static void show_popup(void) {
     x.font = XftFontOpenName(x.dpy, x.screen, font);
     if (!x.font) err(1, "XftFontOpenName failed for %s", font);
   }
+
   // Get width and height of message
   XftTextExtentsUtf8(x.dpy, x.font, (FcChar8 *)msg, (int)strlen(msg), &extents);
 
@@ -128,15 +128,19 @@ static void show_popup(void) {
   int top  = (x.height - boxh) / 2;
   if (top < 0) top = 0;
 
-  if(x.popup != 0) kill_popup();
-  x.popup = XCreateSimpleWindow(x.dpy, DefaultRootWindow(x.dpy),
-                                left, top,
-                                (unsigned int)boxw, (unsigned int)boxh,
-                                1, x.magenta, x.black);
+  if (x.popup == None) {
+    /* create once; resize/move on subsequent shows */
+    x.popup = XCreateSimpleWindow(x.dpy, DefaultRootWindow(x.dpy),
+                                  left, top,
+                                  (unsigned int)boxw, (unsigned int)boxh,
+                                  1, x.magenta, x.black);
+    att.override_redirect = True;
+    XChangeWindowAttributes(x.dpy, x.popup, CWOverrideRedirect, &att);
+  } else {
+    XMoveResizeWindow(x.dpy, x.popup, left, top, (unsigned int)boxw, (unsigned int)boxh);
+  }
 
-  att.override_redirect = True;
-  XChangeWindowAttributes(x.dpy, x.popup, CWOverrideRedirect, &att);
-  XMapWindow(x.dpy, x.popup);
+  XMapRaised(x.dpy, x.popup);
 
   xftdraw = XftDrawCreate(x.dpy,
                           x.popup,
@@ -154,11 +158,10 @@ static void show_popup(void) {
   XftDrawStringUtf8(xftdraw, &xftcolor, x.font, padw, padh + x.font->ascent,
                     (FcChar8 *)msg, (int)strlen(msg));
 
-  // Free Xft resources
-  XftDrawDestroy(xftdraw);
-  XftFontClose(x.dpy, x.font);
+  XftDrawDestroy(xftdraw); // Free Xft resources
   XftColorFree(x.dpy, DefaultVisual(x.dpy, x.screen),
                x.colormap, &xftcolor);
+  XFlush(x.dpy);
 }
 
 static inline int pct_to_pixels(int total, unsigned int pct) {
@@ -441,6 +444,8 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  if (x.popup != None) XDestroyWindow(x.dpy, x.popup);
+  if (x.font) XftFontClose(x.dpy, x.font);
   XCloseDisplay(x.dpy);
   exit(0);
 }
