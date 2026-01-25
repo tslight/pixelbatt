@@ -216,28 +216,22 @@ static void redraw(void) {
 }
 
 static void battery_status(void) {
-  int a, t;
-  unsigned int l;
-  size_t a_size, l_size, t_size;
+  size_t a_size, b_size, t_size;
 
-  a_size = sizeof(a);
-  if (sysctlbyname("hw.acpi.acline", &a, &a_size, NULL, 0) == -1) {
+  a_size = sizeof(ac_line);
+  if (sysctlbyname("hw.acpi.acline", &ac_line, &a_size, NULL, 0) == -1) {
     err(1, "failed to get AC-line status.\n");
   }
 
-  l_size = sizeof(l);
-  if (sysctlbyname("hw.acpi.battery.life", &l, &l_size, NULL, 0) == -1) {
+  b_size = sizeof(battery_life);
+  if (sysctlbyname("hw.acpi.battery.life", &battery_life, &b_size, NULL, 0) == -1) {
     err(1, "failed to get battery life status.\n");
   }
 
-  t_size = sizeof(t);
-  if (sysctlbyname("hw.acpi.battery.time", &t, &t_size, NULL, 0) == -1) {
+  t_size = sizeof(time_remaining);
+  if (sysctlbyname("hw.acpi.battery.time", &time_remaining, &t_size, NULL, 0) == -1) {
     err(1, "failed to get battery time status.\n");
   }
-
-  ac_line = a;
-  battery_life = l;
-  time_remaining = t;
 
   if (hidepct > 0) {
     if (ac_line && battery_life > hidepct) {
