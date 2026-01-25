@@ -323,17 +323,14 @@ int main(int argc, char* argv[]) {
       break;
     case 'p':
       safe_atoui(optarg, &poll);
-      if (poll > 600) {
-        warnx("Anything can happen %d...! Falling back to %d", poll, DEFPOLL);
+      if (poll > 3600) {
+        warnx("Anything can happen in %d mins! "
+              "Falling back to %d sec poll interval", poll/60, DEFPOLL);
         poll = DEFPOLL;
       }
       break;
     case 's':
       safe_atoui(optarg, &x.size);
-      if (x.size > 1000) {
-        warnx("%d pixels is ridiculous! Falling back to %d", x.size, DEFSIZE);
-        x.size = DEFSIZE;
-      }
       break;
     case 'u':
       above = 0;
@@ -346,6 +343,12 @@ int main(int argc, char* argv[]) {
   if (!x.position) x.position = DEFPOS;
 
   init_x(display);
+
+  if (x.size > (uint)x.width - 1) {
+    warnx("%d is bigger than the display! Falling back to %d pixels.", x.size, x.width - 1);
+    x.size = (uint)x.width - 1;
+  }
+
   battery_status();
 
   for (;;) {
