@@ -58,18 +58,18 @@ static struct xinfo {
 } x;
 
 static const struct option longopts[] = {
-  { "hide",	required_argument,	NULL, 'h' },
-  { "font",	required_argument,	NULL, 'f' },
-  { "size",	required_argument,	NULL, 's' },
-  { "poll",	required_argument,	NULL, 'p' },
-  { "warn",	required_argument,	NULL, 'w' },
-  { "display",	required_argument,	NULL, 'd' },
-  { "above",	no_argument,		NULL, 'a' },
-  { "left",	no_argument,		NULL, 'l' },
-  { "right",	no_argument,		NULL, 'r' },
-  { "top",	no_argument,		NULL, 't' },
-  { "bottom",	no_argument,		NULL, 'b' },
-  { NULL,	0,			NULL, 0   }
+  { "hide",    required_argument,	NULL, 'h' },
+  { "font",    required_argument,	NULL, 'f' },
+  { "size",    required_argument,	NULL, 's' },
+  { "poll",    required_argument,	NULL, 'p' },
+  { "warn",    required_argument,	NULL, 'w' },
+  { "display", required_argument,	NULL, 'd' },
+  { "above",   no_argument,       NULL, 'a' },
+  { "left",    no_argument,       NULL, 'l' },
+  { "right",   no_argument,       NULL, 'r' },
+  { "top",     no_argument,       NULL, 't' },
+  { "bottom",  no_argument,       NULL, 'b' },
+  { NULL,	0, NULL, 0 }
 };
 
 static void usage(void) {
