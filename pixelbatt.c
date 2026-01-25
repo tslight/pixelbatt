@@ -269,18 +269,18 @@ static void init_x(const char *display) {
   if (!(x.dpy = XOpenDisplay(display)))
     err(1, "unable to open display %s", XDisplayName(display));
 
-  x.screen	= DefaultScreen(x.dpy);
-  x.width	= DisplayWidth(x.dpy, x.screen);
-  x.height	= DisplayHeight(x.dpy, x.screen);
-  x.popup	= None;
-  x.colormap	= DefaultColormap(x.dpy, DefaultScreen(x.dpy));
-  x.black	= getcolor("black");
-  x.magenta	= getcolor("magenta");
-  x.green	= getcolor("green");
-  x.yellow	= getcolor("yellow");
-  x.red         = getcolor("red");
-  x.blue        = getcolor("blue");
-  x.olive       = getcolor("olive drab");
+  x.screen   = DefaultScreen(x.dpy);
+  x.width    = DisplayWidth(x.dpy, x.screen);
+  x.height   = DisplayHeight(x.dpy, x.screen);
+  x.popup    = None;
+  x.colormap = DefaultColormap(x.dpy, DefaultScreen(x.dpy));
+  x.black    = getcolor("black");
+  x.magenta  = getcolor("magenta");
+  x.green    = getcolor("green");
+  x.yellow   = getcolor("yellow");
+  x.red      = getcolor("red");
+  x.blue     = getcolor("blue");
+  x.olive    = getcolor("olive drab");
 
   switch (x.position) {
   case 'b':
