@@ -54,6 +54,7 @@ static struct xinfo {
   Colormap colormap;
   unsigned long black, green, magenta, yellow, red, blue, olive;
   XftFont *font;
+  XftColor fontcolor;
 } x;
 
 static const struct option longopts[] = {
@@ -93,11 +94,10 @@ static void kill_popup(void) {
 
 /* Logic stolen and adapted from xbattbar... */
 static void show_popup(void) {
-  XSetWindowAttributes att;
   char msg[64];
   XftDraw *xftdraw = NULL;
-  XftColor xftcolor;
   XGlyphInfo extents;
+  XSetWindowAttributes att;
   const int padw = 2, padh = 2;
 
   if (time_remaining > 0) {
@@ -148,19 +148,17 @@ static void show_popup(void) {
                           x.colormap);
   if (!xftdraw) err(1, "XftDrawCreate");
 
-  XRenderColor render_color = { 0x0000,   // red
-                                0xffff,   // green
-                                0x0000,   // blue
-                                0xffff }; // opacity
+  static XRenderColor font_green = { 0x0000, 0xffff, 0x0000, 0xffff };
+
   if (!XftColorAllocValue(x.dpy, DefaultVisual(x.dpy, x.screen),
-                          x.colormap, &render_color, &xftcolor))
+                          x.colormap, &font_green, &x.fontcolor))
     err(1, "XftColorAllocValue");
-  XftDrawStringUtf8(xftdraw, &xftcolor, x.font, padw, padh + x.font->ascent,
+  XftDrawStringUtf8(xftdraw, &x.fontcolor, x.font, padw, padh + x.font->ascent,
                     (FcChar8 *)msg, (int)strlen(msg));
 
   XftDrawDestroy(xftdraw); // Free Xft resources
   XftColorFree(x.dpy, DefaultVisual(x.dpy, x.screen),
-               x.colormap, &xftcolor);
+               x.colormap, &x.fontcolor);
   XFlush(x.dpy);
 }
 
@@ -265,6 +263,9 @@ static void init_x(const char *display) {
   if (!(x.dpy = XOpenDisplay(display)))
     err(1, "unable to open display %s", XDisplayName(display));
 
+  if (ConnectionNumber(x.dpy) >= FD_SETSIZE)
+    errx(1, "X connection fd >= FD_SETSIZE; cannot use select() safely");
+
   x.screen   = DefaultScreen(x.dpy);
   x.width    = DisplayWidth(x.dpy, x.screen);
   x.height   = DisplayHeight(x.dpy, x.screen);
@@ -340,7 +341,7 @@ static void safe_atoui(const char *a, unsigned *ui) {
   unsigned long l = strtoul(a, &end, 10);
   if (end == a || *end != '\0') errx(1, "invalid integer: %s", a);
   if (a[0] == '-') errx(1, "unsigned only: %s", a);
-  if (errno == ERANGE || l > UINT_MAX) err(1, "out of range: %s", optarg);
+  if (errno == ERANGE || l > UINT_MAX) err(1, "out of range: %s", a);
   *ui = (unsigned int)l;
 }
 
