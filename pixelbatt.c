@@ -8,80 +8,18 @@
  * Copyright (c) 2025 Toby Slight <tslight@pm.me>
  *
  */
-
-#include <err.h>
-#include <errno.h>
-#include <getopt.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/sysctl.h>
-#include <time.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
-#include <X11/Xft/Xft.h>
-
-#define DEFFONT "monospace:bold:size=18"
-#define DEFHIDE 98
-#define DEFPOS 'l'
-#define DEFPOLL 10
-#define DEFSIZE 2
-#define DEFWARN 10
-
-static volatile sig_atomic_t terminate = 0;
-int ac_line, time_remaining;
-unsigned int battery_life;
-static char* progname;
-// Whether or not to stay on top of all other windows
-static int above = 0;
-// Hide the bar at this percent. 0 means never hide.
-static unsigned int hidepct = DEFHIDE;
-static char* font = DEFFONT;
-
-static struct xinfo {
-  Display* dpy;
-  int width, height;
-  int screen;
-  Window bar;
-  Window popup;
-  unsigned int size;
-  char position;
-  GC gc;
-  Colormap colormap;
-  unsigned long black, green, magenta, yellow, red, blue, olive;
-  XftFont *font;
-  XftColor fontcolor;
-} x;
-
-static const struct option longopts[] = {
-  { "hide",    required_argument,	NULL, 'h' },
-  { "font",    required_argument,	NULL, 'f' },
-  { "size",    required_argument,	NULL, 's' },
-  { "poll",    required_argument,	NULL, 'p' },
-  { "warn",    required_argument,	NULL, 'w' },
-  { "display", required_argument,	NULL, 'd' },
-  { "above",   no_argument,       NULL, 'a' },
-  { "left",    no_argument,       NULL, 'l' },
-  { "right",   no_argument,       NULL, 'r' },
-  { "top",     no_argument,       NULL, 't' },
-  { "bottom",  no_argument,       NULL, 'b' },
-  { NULL,	0, NULL, 0 }
-};
+#include "pixelbatt.h"
 
 static void usage(void) {
   errx(1,
        "usage:\n"
-       "[-above]                    Forces bar to always be on top.\n"
        "[-size <pixels>]            Width of bar in pixels.\n"
-       "[-hide <percent>]           Defaults to 98. 0 means never hide.\n"
-       "[-font <xftfont>]           Defaults to monospace:bold:size=18.\n"
+       "[-hide <percent>]           Defaults to 98%%. 0 means never hide.\n"
+       "[-font <xftfont>]           Defaults to 'monospace:bold:size=18'.\n"
        "[-poll <seconds>]           Defaults to checking every 10 seconds.\n"
        "[-warn <percent>]           Keep showing popup when this percent is reached.\n"
        "[-display <host:dpy>]       Specify a display to use.\n"
+       "[-unraise]                  Prevents bar from always being on top.\n"
        "[-left|-right|-top|-bottom] Specify screen edge.");
 }
 
@@ -366,9 +304,6 @@ int main(int argc, char* argv[]) {
 
   while ((c = getopt_long_only(argc, argv, "", longopts, NULL)) != -1) {
     switch (c) {
-    case 'a':
-      above = 1;
-      break;
     case 'd':
       display = optarg;
       break;
@@ -388,11 +323,20 @@ int main(int argc, char* argv[]) {
       break;
     case 'p':
       safe_atoui(optarg, &poll);
-      if (poll > 600) poll = DEFPOLL;
+      if (poll > 600) {
+        warnx("Anything can happen %d...! Falling back to %d", poll, DEFPOLL);
+        poll = DEFPOLL;
+      }
       break;
     case 's':
       safe_atoui(optarg, &x.size);
-      if (x.size > 1000) x.size = DEFSIZE;
+      if (x.size > 1000) {
+        warnx("%d pixels is ridiculous! Falling back to %d", x.size, DEFSIZE);
+        x.size = DEFSIZE;
+      }
+      break;
+    case 'u':
+      above = 0;
       break;
     default:
       usage();
