@@ -22,7 +22,7 @@ all: $(PROG)
 $(PROG): $(OBJS)
 	$(CC) $(OBJS) $(LDPATH) $(LIBS) -o $@
 
-$(OBJS): *.o: *.c
+$(OBJS): *.o: *.c: *.h
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 install: all
