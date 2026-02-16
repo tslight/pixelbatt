@@ -1,41 +1,31 @@
-CC	= cc
-CFLAGS  = -O2 -pedantic -std=c11
-CFLAGS += -Wall -Wconversion -Wextra -Wshadow -Wunused
-CFLAGS += -Wmissing-prototypes -Wstrict-prototypes
-CFLAGS += -Wuninitialized -Wimplicit-fallthrough
-PREFIX	= /usr/local
-BINDIR	= $(DESTDIR)$(PREFIX)/bin
+CC	 ?= cc
+CFLAGS	 ?= -O2 -pedantic -std=c11
+CFLAGS	 += -Wall -Wconversion -Wextra -Wshadow -Wunused
+CFLAGS	 += -Wmissing-prototypes -Wstrict-prototypes
+CFLAGS	 += -Wuninitialized -Wimplicit-fallthrough
 
-INSTALL_PROGRAM = install -s
+LIBS      = x11 xft freetype2
+INCLUDES != pkg-config --cflags $(LIBS)
+LDFLAGS	 != pkg-config --libs $(LIBS)
 
-INCLUDES= -I/usr/local/include -I/usr/local/include/freetype2
-LDPATH	= -L/usr/local/lib
-LIBS	= -lX11 -lXft
+PREFIX	 = /usr/local
+BINDIR	 = $(DESTDIR)$(PREFIX)/bin
 
-PROG	= pixelbatt
-OBJS	= pixelbatt.o
-
-VERS	:= `grep Id pixelbatt.c | sed -e 's/.*,v //' -e 's/ .*//'`
+PROG	 = pixelbatt
+OBJS	 = pixelbatt.o
 
 all: $(PROG)
 
 $(PROG): $(OBJS)
-	$(CC) $(OBJS) $(LDPATH) $(LIBS) -o $@
+	$(CC) $(OBJS) $(LDFLAGS) -o $@
 
-$(OBJS): *.o: *.c: *.h
+$(OBJS): *.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 install: all
-	$(INSTALL_PROGRAM) $(PROG) $(BINDIR)
+	install -s $(PROG) $(BINDIR)
 
 clean:
 	rm -f $(PROG) $(OBJS)
-
-release: all
-	@mkdir $(PROG)-${VERS}
-	@cp Makefile *.c $(PROG)-$(VERS)/
-	@tar -czf ../$(PROG)-$(VERS).tar.gz $(PROG)-$(VERS)
-	@rm -rf $(PROG)-$(VERS)/
-	@echo "made release ${VERS}"
 
 .PHONY: all install clean

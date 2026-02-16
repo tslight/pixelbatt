@@ -2,7 +2,7 @@
 
 /"A different way of looking at power."/
 
-FreeBSD specific refactor of xbattbar, inspired by [[https://github.com/tslight/pixelclock][pixelclock]].
+Refactor of xbattbar, inspired by [[https://github.com/tslight/pixelclock][pixelclock]].
 
 #+begin_src text
   pixelbatt: usage:

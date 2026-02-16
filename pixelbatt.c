@@ -1,7 +1,7 @@
 /*
  * A different way of looking at power.
  *
- * FreeBSD specific refactor of xbattbar, inspired by pixelclock.
+ * Refactor of xbattbar, inspired by pixelclock.
  *
  * Copyright (c) 2025 Toby Slight <tslight@pm.me>
  *
@@ -12,15 +12,15 @@ static void
 usage(void)
 {
 	errx(1,
-	    "usage:\n"
-	    "[-size <pixels>]            Width of bar in pixels.\n"
-	    "[-hide <percent>]           Defaults to 98%%. 0 means never hide.\n"
-	    "[-font <xftfont>]           Defaults to 'monospace:bold:size=18'.\n"
-	    "[-poll <seconds>]           Defaults to checking every 10 seconds.\n"
-	    "[-warn <percent>]           Keep showing popup when this percent is reached.\n"
-	    "[-display <host:dpy>]       Specify a display to use.\n"
-	    "[-unraise]                  Prevents bar from always being on top.\n"
-	    "[-left|-right|-top|-bottom] Specify screen edge.");
+	     "usage:\n"
+	     "[-size <pixels>]            Width of bar in pixels.\n"
+	     "[-hide <percent>]           Defaults to 98%%. 0 means never hide.\n"
+	     "[-font <xftfont>]           Defaults to 'monospace:bold:size=18'.\n"
+	     "[-poll <seconds>]           Defaults to checking every 10 seconds.\n"
+	     "[-warn <percent>]           Keep showing popup when this percent is reached.\n"
+	     "[-display <host:dpy>]       Specify a display to use.\n"
+	     "[-unraise]                  Prevents bar from always being on top.\n"
+	     "[-left|-right|-top|-bottom] Specify screen edge.");
 }
 
 static void
@@ -42,13 +42,13 @@ show_popup(void)
 	XSetWindowAttributes att;
 	const int padw = 2, padh = 2;
 
-	if (time_remaining > 0) {
+	if (minutes_left > 0) {
 		snprintf(msg, sizeof(msg), "%s: %d%% - %d minutes",
-		    ac_line ? "Charging" : "Discharging", battery_life,
-		    time_remaining);
+			 ac_line ? "Charging" : "Discharging", battery_life,
+			 minutes_left);
 	} else {
 		snprintf(msg, sizeof(msg), "%s: %d%%",
-		    ac_line ? "Charging" : "Discharging", battery_life);
+			 ac_line ? "Charging" : "Discharging", battery_life);
 	}
 
 	if (!x.font) { // cache to avoid calling on every popup
@@ -59,12 +59,12 @@ show_popup(void)
 
 	// Get width and height of message
 	XftTextExtentsUtf8(x.dpy, x.font, (FcChar8 *)msg, (int)strlen(msg),
-	    &extents);
+			   &extents);
 
 	int boxw = extents.xOff +
-	    2 * padw; // offset better than width for some reason!
+		2 * padw; // offset better than width for some reason!
 	int boxh = (x.font->ascent + x.font->descent) +
-	    2 * padh; // reliable line height
+		2 * padh; // reliable line height
 	/* clamp to screen size to avoid (unsigned) wrapping and BadValue */
 	if (boxw > x.width)
 		boxw = x.width - 2;
@@ -80,34 +80,36 @@ show_popup(void)
 	if (x.popup == None) {
 		/* create once; resize/move on subsequent shows */
 		x.popup = XCreateSimpleWindow(x.dpy, DefaultRootWindow(x.dpy),
-		    left, top, (unsigned int)boxw, (unsigned int)boxh, 1,
-		    x.magenta, x.black);
+					      left, top,
+					      (unsigned int)boxw,
+					      (unsigned int)boxh, 1,
+					      x.magenta, x.black);
 		att.override_redirect = True;
 		XChangeWindowAttributes(x.dpy, x.popup, CWOverrideRedirect,
-		    &att);
+					&att);
 	} else {
 		XMoveResizeWindow(x.dpy, x.popup, left, top, (unsigned int)boxw,
-		    (unsigned int)boxh);
+				  (unsigned int)boxh);
 	}
 
 	XMapRaised(x.dpy, x.popup);
 
 	xftdraw = XftDrawCreate(x.dpy, x.popup, DefaultVisual(x.dpy, x.screen),
-	    x.colormap);
+				x.colormap);
 	if (!xftdraw)
 		err(1, "XftDrawCreate");
 
 	static XRenderColor font_green = { 0x0000, 0xffff, 0x0000, 0xffff };
 
 	if (!XftColorAllocValue(x.dpy, DefaultVisual(x.dpy, x.screen),
-		x.colormap, &font_green, &x.fontcolor))
+				x.colormap, &font_green, &x.fontcolor))
 		err(1, "XftColorAllocValue");
 	XftDrawStringUtf8(xftdraw, &x.fontcolor, x.font, padw,
-	    padh + x.font->ascent, (FcChar8 *)msg, (int)strlen(msg));
+			  padh + x.font->ascent, (FcChar8 *)msg, (int)strlen(msg));
 
 	XftDrawDestroy(xftdraw); // Free Xft resources
 	XftColorFree(x.dpy, DefaultVisual(x.dpy, x.screen), x.colormap,
-	    &x.fontcolor);
+		     &x.fontcolor);
 	XFlush(x.dpy);
 }
 
@@ -130,20 +132,20 @@ draw_discharging(unsigned int left)
 		int p = pct_to_pixels(x.width, left);
 		XSetForeground(x.dpy, x.gc, x.magenta);
 		XFillRectangle(x.dpy, x.bar, x.gc, 0, 0, (unsigned int)p,
-		    x.size);
+			       x.size);
 		XSetForeground(x.dpy, x.gc,
-		    (battery_life < 25 ? x.red : x.yellow));
+			       (battery_life < 25 ? x.red : x.yellow));
 		XFillRectangle(x.dpy, x.bar, x.gc, p, 0,
-		    (unsigned int)(x.width - p), x.size);
+			       (unsigned int)(x.width - p), x.size);
 	} else {
 		int p = pct_to_pixels(x.height, left);
 		XSetForeground(x.dpy, x.gc, x.magenta);
 		XFillRectangle(x.dpy, x.bar, x.gc, 0, x.height - p, x.size,
-		    (unsigned int)p);
+			       (unsigned int)p);
 		XSetForeground(x.dpy, x.gc,
-		    (battery_life < 25 ? x.red : x.yellow));
+			       (battery_life < 25 ? x.red : x.yellow));
 		XFillRectangle(x.dpy, x.bar, x.gc, 0, 0, x.size,
-		    (unsigned int)(x.height - p));
+			       (unsigned int)(x.height - p));
 	}
 	XFlush(x.dpy);
 }
@@ -155,20 +157,20 @@ draw_charging(unsigned int left)
 		int p = pct_to_pixels(x.width, left);
 		XSetForeground(x.dpy, x.gc, x.green);
 		XFillRectangle(x.dpy, x.bar, x.gc, 0, 0, (unsigned int)p,
-		    x.size);
+			       x.size);
 		XSetForeground(x.dpy, x.gc,
-		    (battery_life < 75 ? x.yellow : x.olive));
+			       (battery_life < 75 ? x.yellow : x.olive));
 		XFillRectangle(x.dpy, x.bar, x.gc, p, 0,
-		    (unsigned int)(x.width - p), x.size);
+			       (unsigned int)(x.width - p), x.size);
 	} else {
 		int p = pct_to_pixels(x.height, left);
 		XSetForeground(x.dpy, x.gc, x.green);
 		XFillRectangle(x.dpy, x.bar, x.gc, 0, x.height - p, x.size,
-		    (unsigned int)p);
+			       (unsigned int)p);
 		XSetForeground(x.dpy, x.gc,
-		    (battery_life < 75 ? x.yellow : x.olive));
+			       (battery_life < 75 ? x.yellow : x.olive));
 		XFillRectangle(x.dpy, x.bar, x.gc, 0, 0, x.size,
-		    (unsigned int)(x.height - p));
+			       (unsigned int)(x.height - p));
 	}
 	XFlush(x.dpy);
 }
@@ -188,6 +190,7 @@ redraw(void)
 static void
 battery_status(void)
 {
+#ifdef __FreeBSD__
 	size_t a_size, b_size, t_size;
 
 	a_size = sizeof(ac_line);
@@ -197,22 +200,45 @@ battery_status(void)
 
 	b_size = sizeof(battery_life);
 	if (sysctlbyname("hw.acpi.battery.life", &battery_life, &b_size, NULL,
-		0) == -1) {
+			 0) == -1) {
 		err(1, "failed to get battery life status.\n");
 	}
 
-	t_size = sizeof(time_remaining);
-	if (sysctlbyname("hw.acpi.battery.time", &time_remaining, &t_size, NULL,
-		0) == -1) {
+	t_size = sizeof(minutes_left);
+	if (sysctlbyname("hw.acpi.battery.time", &minutes_left, &t_size, NULL,
+			 0) == -1) {
 		err(1, "failed to get battery time status.\n");
 	}
+#endif
+#ifdef __OpenBSD__
+#include <machine/apmvar.h>
+#include <sys/file.h>
+#include <sys/ioctl.h>
+#define APM_PATH "/dev/apm"
+	int fd;
+	struct apm_power_info info;
 
+	if ((fd = open(APM_PATH, O_RDONLY)) == -1) {
+		err(1, "cannot open apm device\n");
+	}
+
+	if (ioctl(fd, APM_IOC_GETPOWER, &info) != 0) {
+		err(1, "ioctl APM_IOC_GETPOWER failed\n");
+	}
+
+	close(fd);
+
+	/* some APM BIOSes return values slightly > 100 */
+	battery_life = (info.battery_life > 100) ? 100 : info.battery_life;
+	minutes_left = (int)info.minutes_left;
+	ac_line = info.ac_state;
+#endif
 	if (hidepct > 0) {
 		if (ac_line && battery_life > hidepct) {
 			XUnmapWindow(x.dpy, x.bar);
 		} else {
 			(above ? XMapRaised(x.dpy, x.bar) :
-				 XMapWindow(x.dpy, x.bar));
+			 XMapWindow(x.dpy, x.bar));
 		}
 	}
 
@@ -226,7 +252,7 @@ getcolor(const char *color)
 	XColor tcolor;
 
 	if (!(rc = XAllocNamedColor(x.dpy, x.colormap, color, &tcolor,
-		  &tcolor)))
+				    &tcolor)))
 		err(1, "can't allocate %s", color);
 
 	return tcolor.pixel;
@@ -246,7 +272,7 @@ init_x(const char *display)
 
 	if (ConnectionNumber(x.dpy) >= FD_SETSIZE)
 		errx(1,
-		    "X connection fd >= FD_SETSIZE; cannot use select() safely");
+		     "X connection fd >= FD_SETSIZE; cannot use select() safely");
 
 	x.screen = DefaultScreen(x.dpy);
 	x.width = DisplayWidth(x.dpy, x.screen);
@@ -289,8 +315,8 @@ init_x(const char *display)
 	}
 
 	x.bar = XCreateSimpleWindow(x.dpy, RootWindow(x.dpy, x.screen), left,
-	    top, (unsigned int)width, (unsigned int)height, 0, x.black,
-	    x.black);
+				    top, (unsigned int)width, (unsigned int)height, 0, x.black,
+				    x.black);
 
 	if (!(rc = XStringListToTextProperty(&progname, 1, &progname_prop)))
 		err(1, "XStringListToTextProperty");
@@ -300,7 +326,7 @@ init_x(const char *display)
 		XFree(progname_prop.value);
 
 	attributes.override_redirect =
-	    True; // brute force position/size and decoration
+		True; // brute force position/size and decoration
 	XChangeWindowAttributes(x.dpy, x.bar, CWOverrideRedirect, &attributes);
 
 	if (!(x.gc = XCreateGC(x.dpy, x.bar, 0, &values)))
@@ -309,8 +335,8 @@ init_x(const char *display)
 	XMapWindow(x.dpy, x.bar);
 
 	XSelectInput(x.dpy, x.bar,
-	    ExposureMask | EnterWindowMask | LeaveWindowMask |
-		VisibilityChangeMask);
+		     ExposureMask | EnterWindowMask | LeaveWindowMask |
+		     VisibilityChangeMask);
 
 	XFlush(x.dpy);
 	XSync(x.dpy, False);
@@ -388,7 +414,7 @@ main(int argc, char *argv[])
 			if (poll > 3600) {
 				warnx("Anything can happen in %d mins! "
 				      "Falling back to %d sec poll interval",
-				    poll / 60, DEFPOLL);
+				      poll / 60, DEFPOLL);
 				poll = DEFPOLL;
 			}
 			break;
@@ -410,8 +436,8 @@ main(int argc, char *argv[])
 
 	if (x.size > (uint)x.width - 1) {
 		warnx(
-		    "%d is bigger than the display! Falling back to %d pixels.",
-		    x.size, x.width - 1);
+			"%d is bigger than the display! Falling back to %d pixels.",
+			x.size, x.width - 1);
 		x.size = (uint)x.width - 1;
 	}
 
