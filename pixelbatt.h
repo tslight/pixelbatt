@@ -1,7 +1,7 @@
 /*
  * A different way of looking at power.
  *
- * FreeBSD specific refactor of xbattbar, inspired by pixelclock.
+ * Refactor of xbattbar, inspired by pixelclock.
  *
  * Copyright (c) 2025 Toby Slight <tslight@pm.me>
  *
@@ -23,9 +23,9 @@
 #include <time.h>
 #include <unistd.h>
 
-#define DEFFONT	 "monospace:bold:size=18"
+#define DEFFONT	 "monospace:bold:size=13"
 #define DEFHIDE	 98
-#define DEFPOS	 'l'
+#define DEFPOS	 'b'
 #define DEFPOLL	 10
 #define DEFRAISE 1
 #define DEFSIZE	 2
@@ -36,7 +36,7 @@ static char *progname;
 static unsigned int above = DEFRAISE; // always on top by default
 static unsigned int hidepct = DEFHIDE;
 static char *font = DEFFONT;
-static int ac_line, time_remaining;
+static int ac_line, minutes_left;
 static unsigned int battery_life;
 
 static struct xinfo {
