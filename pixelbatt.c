@@ -19,7 +19,6 @@ usage(void)
 	     "[-poll <seconds>]           Defaults to checking every 10 seconds.\n"
 	     "[-warn <percent>]           Keep showing popup when this percent is reached.\n"
 	     "[-display <host:dpy>]       Specify a display to use.\n"
-	     "[-unraise]                  Prevents bar from always being on top.\n"
 	     "[-left|-right|-top|-bottom] Specify screen edge.");
 }
 
@@ -237,8 +236,7 @@ battery_status(void)
 		if (ac_line && battery_life > hidepct) {
 			XUnmapWindow(x.dpy, x.bar);
 		} else {
-			(above ? XMapRaised(x.dpy, x.bar) :
-			 XMapWindow(x.dpy, x.bar));
+			XMapWindow(x.dpy, x.bar);
 		}
 	}
 
@@ -366,34 +364,6 @@ safe_atoui(const char *a, unsigned *ui)
 	*ui = (unsigned int)l;
 }
 
-static int
-obscured_by_override_redirect(void)
-{
-	Window root, parent, *children;
-	unsigned int nchildren;
-	int result = 0;
-
-	if (!XQueryTree(x.dpy, DefaultRootWindow(x.dpy), &root, &parent,
-			&children, &nchildren) || nchildren == 0)
-		return 0;
-
-	/* children are in bottom-to-top order; walk from top down */
-	for (int i = (int)nchildren - 1; i >= 0; i--) {
-		if (children[i] == x.bar || children[i] == x.popup)
-			continue;
-		XWindowAttributes wa;
-		if (XGetWindowAttributes(x.dpy, children[i], &wa) &&
-		    wa.map_state == IsViewable) {
-			result = wa.override_redirect;
-			break;
-		}
-	}
-
-	if (children)
-		XFree(children);
-	return result;
-}
-
 int
 main(int argc, char *argv[])
 {
@@ -449,9 +419,6 @@ main(int argc, char *argv[])
 		case 's':
 			safe_atoui(optarg, &x.size);
 			break;
-		case 'u':
-			above = 0;
-			break;
 		default:
 			usage();
 		}
@@ -499,9 +466,6 @@ main(int argc, char *argv[])
 					show_popup();
 				} else if (event.type == LeaveNotify) {
 					kill_popup();
-				} else if (event.type == VisibilityNotify) {
-					if (above && !obscured_by_override_redirect())
-						XRaiseWindow(x.dpy, x.bar);
 				} else if (event.type == Expose) {
 					redraw();
 				}
